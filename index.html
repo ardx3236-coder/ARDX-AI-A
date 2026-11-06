@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080910">
+<title>ARDX AI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#080910;--panel:#11131d;--line:#272a39;--text:#f5f5fa;--muted:#9699aa;--accent:#8065ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#252044 0,transparent 55%),var(--bg);color:var(--text);font:15px/1.5 system-ui,Arial,sans-serif;min-height:100vh}
+header{height:68px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:#090a12cc;position:sticky;top:0;z-index:5;backdrop-filter:blur(12px)}
+.brand{font-weight:900;letter-spacing:3px;font-size:22px}.brand span{color:var(--accent)}button,input,textarea{font:inherit}
+button{border:0;border-radius:12px;background:var(--accent);color:white;padding:12px 16px;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.ghost{background:#202333;border:1px solid var(--line)}.tiny{padding:8px 12px;font-size:13px}
+main{max-width:1050px;margin:28px auto;padding:0 15px}.card{background:linear-gradient(145deg,#141622,#0f111a);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 18px 55px #0004}
+h1,h2,p{margin-top:0}h1{font-size:clamp(27px,5vw,43px);line-height:1.1;margin-bottom:10px}h2{font-size:19px}.muted{color:var(--muted)}.hidden{display:none!important}
+.auth{max-width:430px;margin:8vh auto}.field{width:100%;border:1px solid var(--line);background:#090b13;color:white;border-radius:12px;padding:14px;margin:7px 0;outline:none}.field:focus{border-color:var(--accent)}
+.auth button{width:100%;margin-top:8px}.auth .row button{width:50%}.row{display:flex;gap:8px}
+.layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:16px}.sidebar{align-self:start}.sidebtn{width:100%;text-align:left;margin:5px 0;background:#1a1d2a}.sidebtn.active{background:#403477}.chatcard{min-height:70vh;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.chathead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.chathead h2{margin:0}.messages{padding:18px;overflow:auto;flex:1;min-height:300px;max-height:58vh}.bubble{max-width:88%;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 15px;border-radius:15px;margin:10px 0;background:#202333;border:1px solid #2c3040}.bubble.user{margin-left:auto;background:#392d70;border-color:#5947a0}.bubble .who{font-size:11px;color:#b9b4d9;margin-bottom:4px}
+.composer{display:flex;gap:8px;padding:14px;border-top:1px solid var(--line)}.composer input{flex:1;min-width:0;margin:0}.composer button{white-space:nowrap}
+.status{font-size:13px;color:var(--muted);min-height:20px}.avatar{width:100%;aspect-ratio:1.1;display:grid;place-items:center;border-radius:16px;background:radial-gradient(circle at 50% 38%,#55429c,#171426 60%,#0b0c13);font-size:65px;margin-bottom:12px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}.sidebar{display:flex;gap:7px;overflow:auto}.sidebtn{white-space:nowrap;width:auto;flex:1}.sidebar .avatar,.sidebar .muted{display:none}.chatcard{min-height:68vh}.messages{max-height:52vh}header{padding:0 14px}}
+</style>
+</head>
+<body>
+<header><div class="brand">ARDX<span>AI</span></div><div><span id="userLabel" class="muted"></span> <button id="logoutBtn" class="ghost tiny hidden">Logout</button></div></header>
+<main>
+<section id="authView" class="card auth">
+  <h1>Meet ARDX AI.</h1><p class="muted">Your personal AI assistant.</p>
+  <input id="email" class="field" type="email" autocomplete="email" placeholder="Email address">
+  <input id="password" class="field" type="password" autocomplete="current-password" placeholder="Password (at least 6 characters)">
+  <div class="row"><button id="loginBtn">Login</button><button id="signupBtn" class="ghost">Create account</button></div>
+  <p id="authStatus" class="status" aria-live="polite"></p>
+</section>
+<section id="appView" class="hidden">
+  <div class="layout">
+    <aside class="card sidebar">
+      <div class="avatar">✦</div><h2>ARDX Assistant</h2><p class="muted">Ready when you are.</p>
+      <button id="newChatBtn" class="sidebtn active">＋ New chat</button>
+      <button id="voiceBtn" class="sidebtn">🎙 Voice input</button>
+      <p class="muted" style="font-size:12px;margin:14px 4px 0">Your chats are saved to your signed-in account.</p>
+    </aside>
+    <section class="card chatcard">
+      <div class="chathead"><h2>Chat with ARDX</h2><span class="muted" style="font-size:12px">AI ASSISTANT</span></div>
+      <div id="messages" class="messages"><div class="bubble"><div class="who">ARDX AI</div>Assalam-o-alaikum! How can I help you today?</div></div>
+      <div class="composer"><input id="prompt" class="field" placeholder="Message ARDX AI..." autocomplete="off"><button id="sendBtn">Send</button></div>
+    </section>
+  </div>
+  <p id="appStatus" class="status" aria-live="polite"></p>
+</section>
+</main>
+<script>
+/* Supabase project settings */
+const SUPABASE_URL = "https://btfzqkoqrlnkyqglvloa.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE";
+/* Keep AI provider secret keys on the server, never in this file. */
+const AI_ENDPOINT = "/api/chat";
+
+const $ = id => document.getElementById(id);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let user = null;
+let busy = false;
+
+function status(id, message){ $(id).textContent = message || ""; }
+function show(view){
+  $("authView").classList.toggle("hidden", view !== "auth");
+  $("appView").classList.toggle("hidden", view !== "app");
+  $("logoutBtn").classList.toggle("hidden", view !== "app");
+}
+function addBubble(text, role){
+  const wrap = document.createElement("div");
+  wrap.className = "bubble " + (role === "user" ? "user" : "");
+  const who = document.createElement("div");
+  who.className = "who";
+  who.textContent = role === "user" ? "YOU" : "ARDX AI";
+  const body = document.createElement("div");
+  body.textContent = text;
+  wrap.append(who, body);
+  $("messages").appendChild(wrap);
+  $("messages").scrollTop = $("messages").scrollHeight;
+  return body;
+}
+function setBusy(value){
+  busy = value;
+  $("sendBtn").disabled = value;
+  $("prompt").disabled = value;
+  $("sendBtn").textContent = value ? "..." : "Send";
+}
+async function signup(){
+  const email = $("email").value.trim(), password = $("password").value;
+  if(!email || password.length < 6){ status("authStatus","Enter a valid email and a password of at least 6 characters."); return; }
+  status("authStatus","Creating account...");
+  const {error} = await supabase.auth.signUp({email,password});
+  status("authStatus", error ? error.message : "Account created. Check your email if confirmation is enabled, then log in.");
+}
+async function login(){
+  const email = $("email").value.trim(), password = $("password").value;
+  if(!email || !password){ status("authStatus","Enter your email and password."); return; }
+  status("authStatus","Logging in...");
+  const {data,error} = await supabase.auth.signInWithPassword({email,password});
+  if(error){ status("authStatus",error.message); return; }
+  user = data.user; await startApp();
+}
+async function logout(){
+  await supabase.auth.signOut(); user = null; show("auth"); status("authStatus","You are logged out.");
+}
+async function startApp(){
+  show("app"); $("userLabel").textContent = user.email || "";
+  status("appStatus","Loading your chat history...");
+  await loadHistory();
+}
+async function loadHistory(){
+  const {data,error} = await supabase.from("messages").select("role,content").eq("user_id",user.id).order("created_at",{ascending:true}).limit(200);
+  if(error){ status("appStatus","Chat history could not load: " + error.message); return; }
+  $("messages").innerHTML = "";
+  if(!data || !data.length) addBubble("Assalam-o-alaikum! How can I help you today?","assistant");
+  else data.forEach(m => addBubble(m.content,m.role));
+  status("appStatus","");
+}
+async function saveMessage(role,content){
+  const {error} = await supabase.from("messages").insert({user_id:user.id,role,content});
+  if(error) throw error;
+}
+async function sendMessage(){
+  if(busy || !user) return;
+  const message = $("prompt").value.trim();
+  if(!message) return;
+  $("prompt").value = ""; addBubble(message,"user"); setBusy(true); status("appStatus","");
+  try{
+    await saveMessage("user",message);
+    const response = await fetch(AI_ENDPOINT,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error || "AI server is not available. Check the /api/chat backend.");
+    const reply = result.reply || result.message || "The AI server returned an empty response.";
+    addBubble(reply,"assistant"); await saveMessage("assistant",reply);
+  }catch(err){
+    addBubble("I couldn't reach the AI service. " + err.message,"assistant");
+    status("appStatus","Check that the secure /api/chat endpoint is deployed and that the messages table is configured.");
+  }finally{setBusy(false);$("prompt").focus();}
+}
+function newChat(){
+  $("messages").innerHTML = "";
+  addBubble("New conversation started. What would you like to discuss?","assistant");
+  /* This clears only the visible conversation. Saved history remains in the database. */
+}
+function voiceInput(){
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!Recognition){status("appStatus","Voice input is not supported in this browser. Try Chrome.");return;}
+  const rec = new Recognition(); rec.lang = "en-US"; rec.interimResults = false;
+  rec.onresult = e => {$("prompt").value = e.results[0][0].transcript; $("prompt").focus();};
+  rec.onerror = () => status("appStatus","Voice input was unavailable. Please try again.");
+  rec.start();
+}
+$("loginBtn").addEventListener("click",login);
+$("signupBtn").addEventListener("click",signup);
+$("logoutBtn").addEventListener("click",logout);
+$("sendBtn").addEventListener("click",sendMessage);
+$("prompt").addEventListener("keydown",e=>{if(e.key==="Enter")sendMessage();});
+$("newChatBtn").addEventListener("click",newChat);
+$("voiceBtn").addEventListener("click",voiceInput);
+supabase.auth.getSession().then(({data,error})=>{
+  if(error){status("authStatus",error.message);return;}
+  if(data.session){user=data.session.user;startApp();}
+});
+</script>
+</body>
+</html>
